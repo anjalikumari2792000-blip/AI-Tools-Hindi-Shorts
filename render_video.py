@@ -30,7 +30,7 @@ try:
 except:
     whoosh_sfx = pop_sfx = None
 
-viral_colors = ['#FFD400', '#00FFFF', '#FFFFFF', '#39FF14'] 
+viral_colors = ['#00FF41', '#00FFFF', '#FFFFFF', '#FF007F']  # Matrix Green, Cyan, White, Neon Pink
 
 # 🌟 SHORTS FORMAT (Vertical 1080x1920)
 TARGET_W, TARGET_H = 1080, 1920
