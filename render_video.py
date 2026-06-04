@@ -1,10 +1,15 @@
 import os, requests, json, subprocess, socket
 import requests.packages.urllib3.util.connection as urllib3_cn
+import urllib3
+from urllib.parse import urlparse
 
-# Force Python requests to use IPv4 only (Fixes Errno 101 on Hostinger/GitHub Actions)
+# Force Python requests to use IPv4 globally (Fixes Errno 101 for API calls)
 def allowed_gai_family():
     return socket.AF_INET
 urllib3_cn.allowed_gai_family = allowed_gai_family
+
+# Disable SSL warnings because we are hitting the IP directly for the webhook
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 import moviepy.editor as mpe
 from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip, CompositeVideoClip, TextClip, concatenate_videoclips, vfx, afx, ImageClip, ColorClip
@@ -169,7 +174,8 @@ if not video_link.startswith("http"):
         if res.text.startswith("http"): video_link = res.text.strip()
     except Exception as e: print(f"Transfer.sh failed: {e}")
 
-# Notify Telegram & Resume n8n Wait Node
+
+# 🌟 FINAL FIX: DIRECT IP ROUTING TO TRAEFIK
 print(f"🔥 FINAL YOUTUBE LINK: {video_link} 🔥")
 
 payload = {
@@ -178,15 +184,30 @@ payload = {
     "youtube_url": video_link
 }
 
+VPS_IP = "82.112.227.54"
+
+def send_direct_webhook(url, json_data):
+    if not url: return None
+    parsed = urlparse(url)
+    original_domain = parsed.hostname
+    # Swap the domain for your direct IPv4 address to bypass Hostinger's DNS
+    direct_url = url.replace(original_domain, VPS_IP)
+    # Give Traefik the correct Host header so it routes traffic into your n8n container
+    headers = {"Host": original_domain}
+    
+    return requests.post(direct_url, json=json_data, headers=headers, timeout=15, verify=False)
+
+# 1. Send Standard Webhook
 try:
-    requests.post(webhook_url, json=payload, timeout=15)
+    send_direct_webhook(webhook_url, payload)
 except Exception as e:
     print(f"Warning: Standard Webhook unreachable. Error: {e}")
 
+# 2. Resume n8n Wait Node
 if resume_url:
-    print(f"Resuming n8n workflow at: {resume_url}")
+    print(f"Resuming n8n workflow bypassing DNS...")
     try:
-        response = requests.post(resume_url, json={"body": payload}, timeout=15)
+        response = send_direct_webhook(resume_url, {"body": payload})
         print(f"n8n Resume Response: {response.status_code} - {response.text}")
     except Exception as e:
         print(f"Warning: Failed to resume n8n. Error: {e}")
