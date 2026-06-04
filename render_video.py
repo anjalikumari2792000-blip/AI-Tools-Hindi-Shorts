@@ -1,4 +1,11 @@
-import os, requests, json, subprocess
+import os, requests, json, subprocess, socket
+import requests.packages.urllib3.util.connection as urllib3_cn
+
+# Force Python requests to use IPv4 only (Fixes Errno 101 on Hostinger/GitHub Actions)
+def allowed_gai_family():
+    return socket.AF_INET
+urllib3_cn.allowed_gai_family = allowed_gai_family
+
 import moviepy.editor as mpe
 from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip, CompositeVideoClip, TextClip, concatenate_videoclips, vfx, afx, ImageClip, ColorClip
 
@@ -26,7 +33,7 @@ current_time = 0.0
 
 try:
     whoosh_sfx = AudioFileClip("whoosh.mp3").volumex(0.25)
-    pop_sfx = AudioFileClip("pop.mp3").volumex(0.15)       
+    pop_sfx = AudioFileClip("pop.mp3").volumex(0.15)        
 except:
     whoosh_sfx = pop_sfx = None
 
