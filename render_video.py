@@ -1,6 +1,5 @@
 import os, requests, json, subprocess, socket
 import requests.packages.urllib3.util.connection as urllib3_cn
-from urllib.parse import urlparse
 
 # Force Python requests to use IPv4 globally
 def allowed_gai_family():
@@ -14,10 +13,9 @@ HINDI_FONT_FILE = "Hindi.ttf"
 
 full_text = os.environ.get('FULL_TEXT', 'Ek baar ki baat hai.')
 chat_id = os.environ.get('CHAT_ID')
-webhook_url = os.environ.get('WEBHOOK_URL')
 pexels_key = os.environ.get('PEXELS_API_KEY')
 scenes_data = json.loads(os.environ.get('SCENES_DATA', '[]'))
-resume_url = os.environ.get('RESUME_URL') # n8n Wait Node Resume URL
+title = os.environ.get('TITLE', 'Amazing AI Shorts #Shorts')
 
 print(f"Total Scenes to render: {len(scenes_data)}")
 
@@ -38,8 +36,9 @@ try:
 except:
     whoosh_sfx = pop_sfx = None
 
-viral_colors = ['#00FF41', '#00FFFF', '#FFFFFF', '#FF007F']  
+viral_colors = ['#00FF41', '#00FFFF', '#FFFFFF', '#FF007F']  # Matrix Green, Cyan, White, Neon Pink
 
+# 🌟 SHORTS FORMAT (Vertical 1080x1920)
 TARGET_W, TARGET_H = 1080, 1920
 
 # 2. Process Each Scene
@@ -50,6 +49,7 @@ for i, scene in enumerate(scenes_data):
     if scene_duration < 1.0: scene_duration = 1.0
     
     try:
+        # Pexels API orientation=portrait for Shorts
         res = requests.get(f"https://api.pexels.com/videos/search?query={keyword}&per_page=1&orientation=portrait", headers=headers).json()
         video_url = res['videos'][0]['video_files'][0]['link']
         
@@ -67,7 +67,7 @@ for i, scene in enumerate(scenes_data):
         dark_overlay = ColorClip(size=(TARGET_W, TARGET_H), color=(0,0,0)).set_opacity(0.35).set_position(('center', 'center')).set_duration(scene_duration)
         
         words = text_line.split(' ')
-        chunk_size = 2 
+        chunk_size = 2 # 2 words per screen for fast-paced Shorts
         chunks = [' '.join(words[j:j + chunk_size]) for j in range(0, len(words), chunk_size)]
         
         word_clips = []
@@ -76,6 +76,7 @@ for i, scene in enumerate(scenes_data):
         for w_i, chunk in enumerate(chunks):
             current_color = viral_colors[w_i % len(viral_colors)]
             
+            # Adjusted text size for Vertical video
             bg_txt = TextClip(chunk, fontsize=120, color='black', font=HINDI_FONT_FILE, stroke_color='black', stroke_width=18, method='caption', size=(950, None))
             bg_txt = bg_txt.set_position(('center', 'center')).set_duration(duration_per_chunk).set_start(w_i * duration_per_chunk)
             
@@ -88,6 +89,7 @@ for i, scene in enumerate(scenes_data):
             
         video_clips.append(final_scene)
         
+        # Audio Mix Timing
         if whoosh_sfx: audio_clips.append(whoosh_sfx.set_start(current_time))
         if pop_sfx: audio_clips.append(pop_sfx.set_start(current_time + 0.1))
                 
@@ -96,8 +98,10 @@ for i, scene in enumerate(scenes_data):
     except Exception as e:
         print(f"Error on scene {i}: {e}")
 
+# Stitch Everything without padding
 final_video = concatenate_videoclips(video_clips, method="compose")
 
+# Progress Bar
 final_duration = final_video.duration
 progress_bar = ColorClip(size=(TARGET_W, 15), color=(255, 0, 0))
 progress_bar = progress_bar.set_position(lambda t: (-TARGET_W + int(TARGET_W * (t / max(final_duration, 1))), 'bottom'))
@@ -105,6 +109,7 @@ progress_bar = progress_bar.set_duration(final_duration)
 
 final_video = CompositeVideoClip([final_video, progress_bar])
 
+# Background Music Mix
 try:
     bgm = AudioFileClip("bgm.mp3").volumex(0.10)
     if bgm.duration < final_video.duration: bgm = afx.audio_loop(bgm, duration=final_video.duration)
@@ -115,12 +120,14 @@ except: pass
 final_audio = CompositeAudioClip(audio_clips)
 final_video = final_video.set_audio(final_audio)
 
+# 🌟 MAGICAL FIX: FAST RENDER & COMPRESSED SIZE
 print("Rendering Final COMPRESSED SHORTS Video...")
 final_video.write_videofile("final_video.mp4", fps=24, codec="libx264", audio_codec="aac", threads=2, bitrate="1500k", preset="ultrafast")
 
 print("Starting 5-Layer Indestructible Upload System...")
 video_link = "Upload Failed"
 
+# LAYER 1: 0x0.st
 if not video_link.startswith("http"):
     try:
         print("Trying 0x0.st API...")
@@ -128,6 +135,7 @@ if not video_link.startswith("http"):
         if res.text.startswith("http"): video_link = res.text.strip()
     except Exception as e: print(f"0x0.st failed: {e}")
 
+# LAYER 2: Uguu.se
 if not video_link.startswith("http"):
     try:
         print("Trying Uguu.se API...")
@@ -135,6 +143,7 @@ if not video_link.startswith("http"):
         if res.status_code == 200: video_link = res.json()['files'][0]['url']
     except Exception as e: print(f"Uguu.se failed: {e}")
 
+# LAYER 3: Tmpfiles.org
 if not video_link.startswith("http"):
     try:
         print("Trying Tmpfiles API...")
@@ -142,6 +151,7 @@ if not video_link.startswith("http"):
         if res.status_code == 200: video_link = res.json()['data']['url'].replace('tmpfiles.org/', 'tmpfiles.org/dl/')
     except Exception as e: print(f"Tmpfiles failed: {e}")
 
+# LAYER 4: Catbox.moe
 if not video_link.startswith("http"):
     try:
         print("Trying Catbox API...")
@@ -149,6 +159,7 @@ if not video_link.startswith("http"):
         if res.text.startswith("http"): video_link = res.text.strip()
     except Exception as e: print(f"Catbox failed: {e}")
 
+# LAYER 5: Transfer.sh
 if not video_link.startswith("http"):
     try:
         print("Trying Transfer.sh API...")
@@ -156,48 +167,23 @@ if not video_link.startswith("http"):
         if res.text.startswith("http"): video_link = res.text.strip()
     except Exception as e: print(f"Transfer.sh failed: {e}")
 
-# 🌟 PORT 80 (HTTP) BYPASS FIX
+
+# 🌟 FINAL FIX: TELEGRAM BRIDGE UPLOADER
 print(f"🔥 FINAL YOUTUBE LINK: {video_link} 🔥")
 
-payload = {
-    "chat_id": chat_id, 
-    "message": "👑 Bhai! Shorts Video Ready! 🔥", 
-    "youtube_url": video_link
-}
+# !!! APNA TELEGRAM BOT TOKEN YAHAN DALEIN !!!
+BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN_HERE" 
 
-VPS_IP = "82.112.227.54"
+# Ye format n8n ko asani se data padhne mein madad karega
+message_text = f"READY_TO_UPLOAD\n{video_link}\n{title}\n{full_text}"
 
-def send_webhook_curl(target_url, json_payload):
-    if not target_url: return
-    
-    parsed = urlparse(target_url)
-    domain = parsed.hostname
-    
-    # Bypass port 443 strictly by forcing port 80 (HTTP)
-    http_url = target_url.replace("https://", "http://")
-    
-    print(f"\n--- Sending Webhook to {domain} via Port 80 (HTTP Bypass) ---")
-    
-    # Added '-L' to automatically follow redirects if Traefik pushes it back to HTTPS
-    curl_cmd = [
-        "curl", "-v", "-L", "-X", "POST", http_url,
-        "--resolve", f"{domain}:80:{VPS_IP}",
-        "-H", "Content-Type: application/json",
-        "-d", json.dumps(json_payload),
-        "--max-time", "15",
-        "-o", "/dev/null", "-w", "%{http_code}" 
-    ]
-    
-    try:
-        result = subprocess.run(curl_cmd, capture_output=True, text=True)
-        print(f"✅ Webhook Status Code: {result.stdout.strip()}")
-        print(f"🔍 CURL Debug Trace:\n{result.stderr}")
-    except Exception as e:
-        print(f"❌ Curl Webhook Python Error: {e}")
-
-send_webhook_curl(webhook_url, payload)
-
-if resume_url:
-    send_webhook_curl(resume_url, {"body": payload})
-else:
-    print("No RESUME_URL provided by n8n. Skipping resume step.")
+try:
+    telegram_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": chat_id, 
+        "text": message_text
+    }
+    response = requests.post(telegram_url, json=payload)
+    print(f"✅ Webhook bypassed! Sent video details directly to Telegram! Status: {response.status_code}")
+except Exception as e:
+    print(f"❌ Failed to send Telegram alert: {e}")
