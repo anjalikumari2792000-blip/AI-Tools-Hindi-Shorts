@@ -189,24 +189,25 @@ def send_webhook_curl(target_url, json_payload):
     domain = parsed.hostname
     port = "443" if target_url.startswith("https") else "80"
     
-    print(f"Sending Webhook to {domain} bypassing DNS...")
+    print(f"\n--- Sending Webhook to {domain} bypassing DNS ---")
     
-    # The magical cURL command: Forces IPv4 and passes perfect SNI to Traefik
+    # Removed '-s' (silent) and added '-v' (verbose) for deep debugging
     curl_cmd = [
-        "curl", "-X", "POST", target_url,
+        "curl", "-v", "-X", "POST", target_url,
         "--resolve", f"{domain}:{port}:{VPS_IP}",
         "-H", "Content-Type: application/json",
         "-d", json.dumps(json_payload),
         "--max-time", "15",
-        "-s", "-o", "/dev/null", "-w", "%{http_code}" # Silently output only status code
+        "-o", "/dev/null", "-w", "%{http_code}" 
     ]
     
     try:
-        # subprocess is already imported at the top of your script
+        # Capture both standard output and error output (where verbose logs go)
         result = subprocess.run(curl_cmd, capture_output=True, text=True)
         print(f"✅ Webhook Status Code: {result.stdout.strip()}")
+        print(f"🔍 CURL Debug Trace:\n{result.stderr}")
     except Exception as e:
-        print(f"❌ Curl Webhook Error: {e}")
+        print(f"❌ Curl Webhook Python Error: {e}")
 
 # 1. Send Standard Webhook
 send_webhook_curl(webhook_url, payload)
