@@ -1,15 +1,11 @@
 import os, requests, json, subprocess, socket
 import requests.packages.urllib3.util.connection as urllib3_cn
-import urllib3
 from urllib.parse import urlparse
 
 # Force Python requests to use IPv4 globally (Fixes Errno 101 for API calls)
 def allowed_gai_family():
     return socket.AF_INET
 urllib3_cn.allowed_gai_family = allowed_gai_family
-
-# Disable SSL warnings because we are hitting the IP directly for the webhook
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 import moviepy.editor as mpe
 from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip, CompositeVideoClip, TextClip, concatenate_videoclips, vfx, afx, ImageClip, ColorClip
@@ -175,7 +171,7 @@ if not video_link.startswith("http"):
     except Exception as e: print(f"Transfer.sh failed: {e}")
 
 
-# 🌟 FINAL FIX: DIRECT IP ROUTING TO TRAEFIK
+# 🌟 FINAL FIX: cURL DIRECT DNS SPOOFING
 print(f"🔥 FINAL YOUTUBE LINK: {video_link} 🔥")
 
 payload = {
@@ -186,30 +182,37 @@ payload = {
 
 VPS_IP = "82.112.227.54"
 
-def send_direct_webhook(url, json_data):
-    if not url: return None
-    parsed = urlparse(url)
-    original_domain = parsed.hostname
-    # Swap the domain for your direct IPv4 address to bypass Hostinger's DNS
-    direct_url = url.replace(original_domain, VPS_IP)
-    # Give Traefik the correct Host header so it routes traffic into your n8n container
-    headers = {"Host": original_domain}
+def send_webhook_curl(target_url, json_payload):
+    if not target_url: return
     
-    return requests.post(direct_url, json=json_data, headers=headers, timeout=15, verify=False)
+    parsed = urlparse(target_url)
+    domain = parsed.hostname
+    port = "443" if target_url.startswith("https") else "80"
+    
+    print(f"Sending Webhook to {domain} bypassing DNS...")
+    
+    # The magical cURL command: Forces IPv4 and passes perfect SNI to Traefik
+    curl_cmd = [
+        "curl", "-X", "POST", target_url,
+        "--resolve", f"{domain}:{port}:{VPS_IP}",
+        "-H", "Content-Type: application/json",
+        "-d", json.dumps(json_payload),
+        "--max-time", "15",
+        "-s", "-o", "/dev/null", "-w", "%{http_code}" # Silently output only status code
+    ]
+    
+    try:
+        # subprocess is already imported at the top of your script
+        result = subprocess.run(curl_cmd, capture_output=True, text=True)
+        print(f"✅ Webhook Status Code: {result.stdout.strip()}")
+    except Exception as e:
+        print(f"❌ Curl Webhook Error: {e}")
 
 # 1. Send Standard Webhook
-try:
-    send_direct_webhook(webhook_url, payload)
-except Exception as e:
-    print(f"Warning: Standard Webhook unreachable. Error: {e}")
+send_webhook_curl(webhook_url, payload)
 
 # 2. Resume n8n Wait Node
 if resume_url:
-    print(f"Resuming n8n workflow bypassing DNS...")
-    try:
-        response = send_direct_webhook(resume_url, {"body": payload})
-        print(f"n8n Resume Response: {response.status_code} - {response.text}")
-    except Exception as e:
-        print(f"Warning: Failed to resume n8n. Error: {e}")
+    send_webhook_curl(resume_url, {"body": payload})
 else:
     print("No RESUME_URL provided by n8n. Skipping resume step.")
